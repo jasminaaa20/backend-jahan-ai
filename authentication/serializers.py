@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from preferences.models import AccountSettings, NotificationSettings, ThemeSettings, PrivacySettings
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
@@ -17,7 +16,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        # Remove the confirmation field
+        # Remove the confirmation field before creating the user.
         validated_data.pop('password2')
         user = User.objects.create(
             username=validated_data['username'],
@@ -25,13 +24,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
         user.set_password(validated_data['password'])
         user.save()
-
-        # Create default preferences for the new user.
-        AccountSettings.objects.create(user=user)
-        NotificationSettings.objects.create(user=user)
-        ThemeSettings.objects.create(user=user)
-        PrivacySettings.objects.create(user=user)
-
         return user
 
 class LoginSerializer(serializers.Serializer):
