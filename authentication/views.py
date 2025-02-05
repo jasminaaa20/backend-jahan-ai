@@ -9,7 +9,7 @@ from preferences.models import NotificationSettings, ThemeSettings, PrivacySetti
 def create_default_preferences(user):
     NotificationSettings.objects.create(
         user=user,
-        frequency='daily',
+        notification_frequency='daily',
         email_notifications=True,
         push_notifications=True
     )
