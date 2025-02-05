@@ -16,7 +16,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        # Remove the confirmation field
+        # Remove the confirmation field before creating the user.
         validated_data.pop('password2')
         user = User.objects.create(
             username=validated_data['username'],
@@ -24,7 +24,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
         user.set_password(validated_data['password'])
         user.save()
-        # Optionally: Create default preferences here via signals or directly.
         return user
 
 class LoginSerializer(serializers.Serializer):
