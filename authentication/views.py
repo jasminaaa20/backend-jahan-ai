@@ -16,7 +16,8 @@ def create_default_preferences(user):
     ThemeSettings.objects.create(
         user=user,
         theme='light',
-        font_size=14
+        font_size=14,
+        layout='grid'
     )
     PrivacySettings.objects.create(
         user=user,

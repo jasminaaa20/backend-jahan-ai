@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 
 class AccountSettings(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="account_settings")
+    # Additional account-related preferences (non-authentication fields)
     preferred_language = models.CharField(max_length=10, default='en')
     time_zone = models.CharField(max_length=50, default='UTC')
     
@@ -28,9 +29,15 @@ class ThemeSettings(models.Model):
         ('light', 'Light'),
         ('dark', 'Dark'),
     ]
+    # Added layout to offer additional theme customization (e.g., grid or list layout)
+    LAYOUT_CHOICES = [
+        ('grid', 'Grid'),
+        ('list', 'List'),
+    ]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="theme_settings")
     theme = models.CharField(max_length=10, choices=THEME_CHOICES, default='light')
     font_size = models.IntegerField(default=14)
+    layout = models.CharField(max_length=10, choices=LAYOUT_CHOICES, default='grid')
 
     def __str__(self):
         return f"{self.user.username} Theme Settings"
