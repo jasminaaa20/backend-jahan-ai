@@ -16,11 +16,11 @@ def create_default_preferences(user):
     ThemeSettings.objects.create(
         user=user,
         theme='light',
-        font_size=14  # Adjust according to your field type (e.g., integer)
+        font_size=14
     )
     PrivacySettings.objects.create(
         user=user,
-        profile_visibility=True,  # Assuming True means public or visible
+        profile_visibility=True,  # True means public
         data_sharing=False        # Adjust defaults as needed
     )
 
