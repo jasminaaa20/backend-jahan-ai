@@ -3,7 +3,6 @@ from django.contrib.auth.models import User
 
 class AccountSettings(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="account_settings")
-    # Example fields; modify as needed:
     preferred_language = models.CharField(max_length=10, default='en')
     time_zone = models.CharField(max_length=50, default='UTC')
     
