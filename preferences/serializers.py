@@ -1,53 +1,56 @@
 from rest_framework import serializers
-from .models import AccountSettings, NotificationSettings, ThemeSettings, PrivacySettings
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+from .models import (
+    AccountSettings,
+    NotificationSettings,
+    ThemeSettings,
+    PrivacySettings
+)
+
+User = get_user_model()
 
 class AccountSettingsSerializer(serializers.ModelSerializer):
-    # Expose user fields via nested sources.
-    username = serializers.CharField(source='user.username', required=False)
-    email = serializers.EmailField(source='user.email', required=False)
-    password = serializers.CharField(
-        write_only=True,
-        required=False,
-        style={'input_type': 'password'}
-    )
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.EmailField(source='user.email', read_only=True)
 
     class Meta:
         model = AccountSettings
-        fields = ['username', 'email', 'password', 'preferred_language', 'time_zone']
+        fields = ['username', 'email', 'language', 'timezone', 'date_format']
 
-    def update(self, instance, validated_data):
-        # Extract user-related data (pop nested "user" data)
-        user_data = validated_data.pop('user', {})
-        password = validated_data.pop('password', None)
-        user = instance.user
-        if 'username' in user_data:
-            user.username = user_data['username']
-        if 'email' in user_data:
-            user.email = user_data['email']
-        if password:
-            user.set_password(password)
-        user.save()
-        # Update the AccountSettings fields
-        return super().update(instance, validated_data)
+    def validate_timezone(self, value):
+        # Add timezone validation if needed
+        return value
 
 class NotificationSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = NotificationSettings
-        fields = ['email_notifications', 'push_notifications', 'notification_frequency']
+        exclude = ['user', 'created_at', 'updated_at']
+
+    def validate(self, data):
+        if not data.get('email_notifications') and data.get('marketing_emails'):
+            raise serializers.ValidationError({
+                "marketing_emails": "Cannot enable marketing emails while email notifications are disabled"
+            })
+        return data
 
 class ThemeSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = ThemeSettings
-        fields = ['theme', 'font_size', 'layout']
+        exclude = ['user', 'created_at', 'updated_at']
+
+    def validate_font_size(self, value):
+        if value % 2 != 0:
+            raise serializers.ValidationError("Font size must be an even number")
+        return value
 
 class PrivacySettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = PrivacySettings
-        fields = ['profile_visibility', 'data_sharing']
+        exclude = ['user', 'created_at', 'updated_at']
 
-class AllPreferencesSerializer(serializers.Serializer):
-    account = AccountSettingsSerializer()
-    notifications = NotificationSettingsSerializer()
-    theme = ThemeSettingsSerializer()
-    privacy = PrivacySettingsSerializer()
+    def validate(self, data):
+        if data.get('profile_visibility') == 'public' and not data.get('allow_search'):
+            raise serializers.ValidationError({
+                "allow_search": "Search must be enabled for public profiles"
+            })
+        return data
