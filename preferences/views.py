@@ -1,72 +1,55 @@
-from rest_framework import generics, permissions
-from rest_framework.views import APIView
+from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from django.core.exceptions import ObjectDoesNotExist
-from django.http import Http404
-
-from .models import AccountSettings, NotificationSettings, ThemeSettings, PrivacySettings
+from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+from .models import (
+    AccountSettings,
+    NotificationSettings,
+    ThemeSettings,
+    PrivacySettings
+)
 from .serializers import (
     AccountSettingsSerializer,
     NotificationSettingsSerializer,
     ThemeSettingsSerializer,
-    PrivacySettingsSerializer,
-    AllPreferencesSerializer
+    PrivacySettingsSerializer
 )
 
-class UserPreferenceMixin:
-    """
-    Mixin to retrieve the user's preference object using the reverse relationship.
-    Expects the subclass to define a `preference_name` attribute corresponding
-    to the related_name on the User model.
-    """
+class BasePreferenceView(generics.RetrieveUpdateAPIView):
+    permission_classes = [IsAuthenticated]
+
     def get_object(self):
-        try:
-            # Access via reverse relationship (e.g. request.user.account_settings)
-            return getattr(self.request.user, self.preference_name)
-        except ObjectDoesNotExist:
-            raise Http404(f"{self.preference_name} not found for user.")
+        return get_object_or_404(self.model, user=self.request.user)
+
+class AccountSettingsView(BasePreferenceView):
+    serializer_class = AccountSettingsSerializer
+    model = AccountSettings
+
+class NotificationSettingsView(BasePreferenceView):
+    serializer_class = NotificationSettingsSerializer
+    model = NotificationSettings
+
+class ThemeSettingsView(BasePreferenceView):
+    serializer_class = ThemeSettingsSerializer
+    model = ThemeSettings
+
+class PrivacySettingsView(BasePreferenceView):
+    serializer_class = PrivacySettingsSerializer
+    model = PrivacySettings
 
 class AllPreferencesView(APIView):
-    """
-    Combined view that retrieves all of the user's preferences.
-    Uses the AllPreferencesSerializer to return a combined representation.
-    """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
-    def get(self, request, *args, **kwargs):
-        try:
-            account = request.user.account_settings
-            notifications = request.user.notification_settings
-            theme = request.user.theme_settings
-            privacy = request.user.privacy_settings
-        except ObjectDoesNotExist:
-            raise Http404("One or more preference objects not found.")
+    def get(self, request):
+        account = get_object_or_404(AccountSettings, user=request.user)
+        notifications = get_object_or_404(NotificationSettings, user=request.user)
+        theme = get_object_or_404(ThemeSettings, user=request.user)
+        privacy = get_object_or_404(PrivacySettings, user=request.user)
 
-        data = {
-            'account': account,
-            'notifications': notifications,
-            'theme': theme,
-            'privacy': privacy,
-        }
-        serializer = AllPreferencesSerializer(instance=data)
-        return Response(serializer.data)
-
-class AccountSettingsView(UserPreferenceMixin, generics.RetrieveUpdateAPIView):
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = AccountSettingsSerializer
-    preference_name = 'account_settings'
-
-class NotificationSettingsView(UserPreferenceMixin, generics.RetrieveUpdateAPIView):
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = NotificationSettingsSerializer
-    preference_name = 'notification_settings'
-
-class ThemeSettingsView(UserPreferenceMixin, generics.RetrieveUpdateAPIView):
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = ThemeSettingsSerializer
-    preference_name = 'theme_settings'
-
-class PrivacySettingsView(UserPreferenceMixin, generics.RetrieveUpdateAPIView):
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = PrivacySettingsSerializer
-    preference_name = 'privacy_settings'
+        return Response({
+            'account': AccountSettingsSerializer(account).data,
+            'notifications': NotificationSettingsSerializer(notifications).data,
+            'theme': ThemeSettingsSerializer(theme).data,
+            'privacy': PrivacySettingsSerializer(privacy).data
+        })
