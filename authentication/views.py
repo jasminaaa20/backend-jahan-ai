@@ -2,8 +2,9 @@ from django.db import transaction
 from rest_framework import status, generics, serializers
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import authenticate
-from .serializers import RegisterSerializer, LoginSerializer
+from .serializers import RegisterSerializer, LoginSerializer, ChangePasswordSerializer
 from preferences.models import NotificationSettings, ThemeSettings, PrivacySettings
 
 def create_default_preferences(user):
@@ -66,3 +67,23 @@ class LoginView(generics.GenericAPIView):
             }, status=status.HTTP_200_OK)
         else:
             return Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+class ChangePasswordView(generics.UpdateAPIView):
+    serializer_class = ChangePasswordSerializer
+    permission_classes = [IsAuthenticated]
+
+    def update(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Save will call set_password on user model
+        user = serializer.save()
+        
+        # Generate new tokens since password changed
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            'detail': 'Password successfully changed',
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_200_OK)
