@@ -1,17 +1,14 @@
-# authentication/tests/test_views.py
-
-from django.test import TestCase
 from django.urls import reverse
+from django.test import TestCase
 from django.contrib.auth.models import User
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APIClient
 from rest_framework import status
 from unittest.mock import patch
-from authentication.views import RegisterView
 from preferences.models import NotificationSettings, ThemeSettings, PrivacySettings
 
 class RegisterViewTests(TestCase):
     def setUp(self):
-        self.factory = APIRequestFactory()
+        self.client = APIClient()
         self.url = reverse('register')
         self.valid_data = {
             'username': 'viewuser',
@@ -21,24 +18,44 @@ class RegisterViewTests(TestCase):
         }
     
     def test_register_creates_user_and_preferences(self):
-        request = self.factory.post(self.url, self.valid_data, format='json')
-        response = RegisterView.as_view()(request)
+        response = self.client.post(self.url, self.valid_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        # Check that the user was created
         user = User.objects.get(username='viewuser')
-        self.assertIsNotNone(user)
-        # Check that the default preferences objects were created for the user
         self.assertTrue(NotificationSettings.objects.filter(user=user).exists())
         self.assertTrue(ThemeSettings.objects.filter(user=user).exists())
         self.assertTrue(PrivacySettings.objects.filter(user=user).exists())
     
     def test_transaction_rollback_on_preferences_failure(self):
-        # Use patch to simulate an exception when creating default preferences.
-        with patch('authentication.views.create_default_preferences') as mocked_create_prefs:
-            mocked_create_prefs.side_effect = Exception("Preferences creation failed")
-            request = self.factory.post(self.url, self.valid_data, format='json')
-            response = RegisterView.as_view()(request)
-            # We expect a 400 error if preferences creation fails
+        with patch('preferences.signals.create_user_preferences') as mocked_create_prefs:
+            mocked_create_prefs.side_effect = Exception("Preferences creation failed") 
+            response = self.client.post(self.url, self.valid_data, format='json')
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-            # Verify that no user was created due to the transaction rollback.
             self.assertFalse(User.objects.filter(username='viewuser').exists())
+
+class ChangePasswordViewTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.url = reverse('change-password')
+        self.user = User.objects.create_user(username='changepassuser', email='changepass@example.com', password='OldPassword123!')
+        self.client.force_authenticate(user=self.user)
+    
+    def test_change_password_success(self):
+        data = {
+            'old_password': 'OldPassword123!',
+            'new_password': 'NewPassword456!',
+            'new_password2': 'NewPassword456!'
+        }
+        response = self.client.put(self.url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('NewPassword456!'))
+    
+    def test_change_password_failure(self):
+        data = {
+            'old_password': 'WrongOldPassword!',
+            'new_password': 'NewPass567!',
+            'new_password2': 'NewPass567!'
+        }
+        response = self.client.put(self.url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('old_password', response.data)
